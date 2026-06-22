@@ -21,11 +21,11 @@ import com.midbows.zkvision.ble.BleManager;
 import com.midbows.zkvision.ble.RobotController;
 import com.midbows.zkvision.data.SettingsManager;
 import com.midbows.zkvision.signal.DoorMonitor;
+import com.midbows.zkvision.signal.LogcatVoiceMonitor;
 import com.midbows.zkvision.signal.MusicMonitor;
 import com.midbows.zkvision.signal.NavMonitor;
 import com.midbows.zkvision.signal.RuleEngine;
 import com.midbows.zkvision.signal.SignalSource;
-import com.midbows.zkvision.signal.VoiceAssistantMonitor;
 import com.midbows.zkvision.ui.MainActivity;
 import com.midbows.zkvision.util.RobotLog;
 
@@ -75,7 +75,7 @@ public final class RobotService extends Service {
         autoConnector.setMotionReadyListener(behaviorEngine::onMotionLinkReady);
         autoConnector.start();
 
-        sources.put(SettingsManager.KEY_VOICE, new VoiceAssistantMonitor(this, behaviorEngine));
+        sources.put(SettingsManager.KEY_VOICE, new LogcatVoiceMonitor(this, behaviorEngine));
         sources.put(SettingsManager.KEY_MUSIC, new MusicMonitor(this, behaviorEngine));
         sources.put(SettingsManager.KEY_DOOR, new DoorMonitor(this, behaviorEngine));
         sources.put(SettingsManager.KEY_NAV, new NavMonitor(this, behaviorEngine));

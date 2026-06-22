@@ -16,6 +16,8 @@
     <!-- 读取整车 VHAL 厂商属性（盲区 LCA 等实时信号），signature|privileged，平台签名+system uid 授予。 -->
     <uses-permission android:name="android.car.permission.CAR_VENDOR_EXTENSION" />
     <uses-permission android:name="android.car.permission.CAR_INFO" />
+    <!-- 读取系统日志以识别语音助手状态（唤醒/聆听/说话/空闲），signature|privileged，平台签名授予。 -->
+    <uses-permission android:name="android.permission.READ_LOGS" />
 
     <uses-feature
         android:name="android.hardware.bluetooth_le"

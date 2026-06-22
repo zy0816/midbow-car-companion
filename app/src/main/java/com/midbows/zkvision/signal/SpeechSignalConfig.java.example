@@ -1,0 +1,47 @@
+package com.midbows.zkvision.signal;
+
+/**
+ * 车机语音引擎的信号特征——与具体车型/语音方案相关，本文件<b>不入库</b>。
+ *
+ * <p>这是占位模板。移植到你自己的车机时：
+ * <ol>
+ *   <li>把本文件复制为同目录下的 {@code SpeechSignalConfig.java}；</li>
+ *   <li>把下面的占位值替换为你车机语音方案的真实包名/文件名/日志主题字串
+ *       （可用 jadx 反编译车机语音 APK + 实车 logcat 取证）；</li>
+ *   <li>读取唤醒方向的 SharedPreferences 文件需与语音守护进程同 system uid（平台签名）。</li>
+ * </ol>
+ * {@link LogcatVoiceMonitor} 不依赖任何闭源 SDK，只读系统日志 + SharedPreferences。
+ */
+final class SpeechSignalConfig {
+
+    private SpeechSignalConfig() {
+    }
+
+    // —— 唤醒方向（DOA）来源：语音守护进程的 SharedPreferences 文件 ——
+
+    /** 语音守护进程包名（其 shared_prefs 目录在同一 system uid 下可直接读取）。 */
+    static final String DAEMON_PACKAGE = "com.example.car.speech.daemon";
+
+    /** 存唤醒方向的 SharedPreferences 文件名（位于该包 shared_prefs/ 下）。 */
+    static final String KEYS_SP_FILE = "com.example.speech.KeysStorage.xml";
+
+    /** SharedPreferences 里唤醒方向的 key：1=主驾 2=副驾 3=左后 4=右后。 */
+    static final String WAKEUP_DIRECTION_KEY = "speech.wakeup_direction";
+
+    // —— 语音状态来源：系统日志中的事件主题字串 ——
+
+    /** 唤醒成功。 */
+    static final String TOPIC_WAKEUP = "sys.wakeup.result";
+
+    /** 对话开始（聆听）。 */
+    static final String TOPIC_LISTENING = "sys.dialog.start";
+
+    /** TTS 播报开始（说话）。 */
+    static final String TOPIC_SPEAKING = "engine.tts.play.begin";
+
+    /** TTS 播报结束。 */
+    static final String TOPIC_SPEAKING_END = "engine.tts.play.end";
+
+    /** 对话结束（回到空闲）。 */
+    static final String TOPIC_IDLE = "sys.dialog.end";
+}

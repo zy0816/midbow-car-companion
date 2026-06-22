@@ -20,8 +20,8 @@ build/
 # 从车机提取的厂商私有 framework jar，属于车机平台方而非本项目，不随仓库分发，请自行从车机抽取
 /app/libs/*.jar
 
-# 车机专有的 VR SDK 真实类名（与具体车型相关）；公开仓库只提供 VrSdkConfig.java.example 模板
-/app/src/main/java/com/midbows/zkvision/signal/VrSdkConfig.java
+# 车机专有的语音信号特征（包名/日志主题字串，与具体车型相关）；公开仓库只提供 SpeechSignalConfig.java.example 模板
+/app/src/main/java/com/midbows/zkvision/signal/SpeechSignalConfig.java
 
 # 构建产物
 *.apk
