@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="编辑规则"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <!-- 名称 -->
+        <TextView
+            style="@style/EditorLabel"
+            android:text="规则名称" />
+
+        <EditText
+            android:id="@+id/etName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="例如：充电时睡觉"
+            android:inputType="text"
+            android:minHeight="56dp"
+            android:textSize="18sp" />
+
+        <!-- 触发 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="触发（车机指令）"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    style="@style/EditorLabel"
+                    android:text="来源" />
+
+                <Spinner
+                    android:id="@+id/spTrigger"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="56dp" />
+
+                <TextView
+                    style="@style/EditorLabel"
+                    android:text="条件" />
+
+                <Spinner
+                    android:id="@+id/spComparator"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="56dp" />
+
+                <TextView
+                    style="@style/EditorLabel"
+                    android:text="目标值" />
+
+                <Spinner
+                    android:id="@+id/spEnumValue"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="56dp" />
+
+                <EditText
+                    android:id="@+id/etNumberValue"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="输入数值"
+                    android:inputType="numberDecimal|numberSigned"
+                    android:minHeight="56dp"
+                    android:textSize="18sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 动作 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="动作（机器人）"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    style="@style/EditorLabel"
+                    android:text="动作" />
+
+                <Spinner
+                    android:id="@+id/spAction"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="56dp" />
+
+                <LinearLayout
+                    android:id="@+id/colorRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="颜色"
+                        android:textSize="16sp" />
+
+                    <View
+                        android:id="@+id/colorPreview"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginStart="16dp"
+                        android:background="@drawable/dot" />
+
+                    <LinearLayout
+                        android:id="@+id/colorSwatches"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="12dp"
+                        android:orientation="horizontal" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 操作按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDelete"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:minHeight="72dp"
+                android:text="删除"
+                android:textSize="18sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSave"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="2"
+                android:minHeight="72dp"
+                android:text="保存"
+                android:textSize="18sp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

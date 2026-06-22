@@ -1,0 +1,58 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.midbows.zkvision'
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "com.midbows.zkvision"
+        minSdk 24
+        targetSdk 33
+        versionCode 28
+        versionName "5.5"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        platform {
+            storeFile file("${rootDir}/platform.keystore")
+            storePassword "android"
+            keyAlias "platform"
+            keyPassword "android"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.platform
+        }
+        debug {
+            signingConfig signingConfigs.platform
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.9.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+
+    // 车机系统 framework 自带（boot classpath）的轻量车控 API；仅编译期引用，不打包进 APK。
+    compileOnly files('libs/ecarx-adaptapi.jar')
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.mockito:mockito-core:4.11.0'
+}

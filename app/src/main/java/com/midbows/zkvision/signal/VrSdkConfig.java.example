@@ -1,0 +1,30 @@
+package com.midbows.zkvision.signal;
+
+/**
+ * 车机语音助手（VR）SDK 的反射目标类名——与具体车型/车机平台相关，本文件<b>不入库</b>。
+ *
+ * <p>这是占位模板。移植到你自己的车机时：
+ * <ol>
+ *   <li>把本文件复制为同目录下的 {@code VrSdkConfig.java}；</li>
+ *   <li>把下面的占位类名替换为你车机 VR SDK 的真实类名（可用 jadx 反编译车机语音 APK 获取）；</li>
+ *   <li>需要平台签名 + system 共享 uid 才能绑定到车机 VR 服务。</li>
+ * </ol>
+ * 类名留空或不存在时，{@link VoiceAssistantMonitor} 会静默降级（语音联动不生效，不影响其余功能）。
+ */
+final class VrSdkConfig {
+
+    private VrSdkConfig() {
+    }
+
+    /** VR 接口入口（提供静态 get() 取单例、init(Context, ApiReadyCallback)）。 */
+    static final String VR_API = "com.example.car.vr.VrAPI";
+
+    /** SDK 就绪回调接口（onAPIReady(boolean, String)）。 */
+    static final String API_READY_CALLBACK = "com.example.car.base.ApiReadyCallback";
+
+    /** 注册用的应用信息 bean（构造：String,String,String,String,int[]）。 */
+    static final String APP_INFO = "com.example.car.vr.AppInfo";
+
+    /** 语音状态回调接口（vrStateChange(int)）。 */
+    static final String CONFIG_STATE_CALLBACK = "com.example.car.vr.IConfigStateCallback";
+}

@@ -1,0 +1,31 @@
+# Android Studio / IntelliJ
+*.iml
+.idea/
+.DS_Store
+
+# Gradle
+.gradle/
+build/
+/app/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+
+# 本机配置（含 SDK 路径，机器相关，不入库）
+/local.properties
+
+# 注：platform.keystore 为 AOSP 公开测试平台密钥（test-keys），与车企无关，随仓库分发以便开箱构建。
+#     如需正式发布到自己的车机，请替换为你车机固件对应的平台密钥。
+
+# 从车机提取的厂商私有 framework jar，属于车机平台方而非本项目，不随仓库分发，请自行从车机抽取
+/app/libs/*.jar
+
+# 车机专有的 VR SDK 真实类名（与具体车型相关）；公开仓库只提供 VrSdkConfig.java.example 模板
+/app/src/main/java/com/midbows/zkvision/signal/VrSdkConfig.java
+
+# 构建产物
+*.apk
+*.aab
+
+# 本地私有资料（车机底层分析等），不公开
+/docs/private/

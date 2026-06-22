@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设备控制台 · 脱离小程序 · 设计图</title>
+<style>
+  :root { font-family: -apple-system, "PingFang SC", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background:#777b82; padding:28px; color:#1b1c1e; }
+  h1 { color:#fff; font-size:16px; font-weight:600; margin-bottom:6px; text-align:center; }
+  .note { color:#dfe2e6; font-size:12px; text-align:center; margin-bottom:20px; }
+
+  /* 车机横屏画布：左侧Tab + 右侧内容 */
+  .screen { max-width:1180px; margin:0 auto; background:#f4f5f7; border-radius:22px;
+            box-shadow:0 18px 50px rgba(0,0,0,.35); overflow:hidden; display:flex; min-height:720px; }
+  .side { width:200px; background:#ffffff; border-right:1px solid #e6e8eb; padding:18px 12px; flex:0 0 auto; }
+  .side .logo { font-size:15px; font-weight:700; padding:8px 12px 18px; }
+  .tab { display:flex; align-items:center; gap:10px; height:60px; padding:0 14px; border-radius:14px;
+         font-size:15px; font-weight:600; color:#5b6066; margin-bottom:6px; }
+  .tab .ic { width:24px; height:24px; border-radius:7px; background:#eef0f3; flex:0 0 auto; }
+  .tab.active { background:#eaf0ff; color:#3f6ad8; }
+  .tab.active .ic { background:#3f6ad8; }
+
+  .content { flex:1; padding:20px; overflow:auto; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .card { background:#fff; border-radius:16px; padding:16px; }
+  .card.full { grid-column:1 / -1; }
+  .card-title { font-size:15px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+  .card-title small { font-weight:500; color:#8a9098; font-size:11px; }
+
+  .btn { height:64px; border-radius:14px; background:#eef0f3; color:#1b1c1e; font-size:16px; font-weight:600;
+         display:flex; align-items:center; justify-content:center; border:none; }
+  .btn small { color:#8a9098; font-weight:500; font-size:11px; margin-left:6px; }
+  .btn.primary { background:#3f6ad8; color:#fff; }
+  .btn.warn { background:#ffe9e6; color:#c0392b; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+
+  /* 方向轮盘 */
+  .wheel { width:240px; height:240px; margin:6px auto 0; display:grid;
+           grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); gap:10px; }
+  .wheel .btn { height:auto; font-size:22px; }
+  .wheel .c { background:#3f6ad8; color:#fff; border-radius:50%; }
+  .wheel .sp { background:transparent; }
+
+  /* 开关行 */
+  .sw-row { display:flex; align-items:center; min-height:60px; border-top:1px solid #f0f1f3; }
+  .sw-row:first-of-type { border-top:none; }
+  .sw-row .label { font-size:15px; font-weight:600; }
+  .sw-row .label small { display:block; font-size:11px; color:#8a9098; font-weight:500; margin-top:2px; }
+  .switch { margin-left:auto; width:52px; height:30px; border-radius:15px; position:relative; flex:0 0 auto; }
+  .switch::after { content:""; position:absolute; top:3px; width:24px; height:24px; border-radius:50%; background:#fff; }
+  .switch.on { background:#3f6ad8; } .switch.on::after { left:25px; }
+  .switch.off { background:#c9cdd3; } .switch.off::after { left:3px; }
+
+  /* 随机动作池 */
+  .pool { display:flex; gap:10px; margin-top:4px; }
+  .pool .slot { flex:1; height:54px; border-radius:12px; background:#eef0f3; display:flex; align-items:center;
+                justify-content:center; font-size:14px; font-weight:600; color:#5b6066; }
+  .pool .slot.on { background:#3f6ad8; color:#fff; }
+
+  /* 颜色盘 */
+  .swatches { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .sw-color { height:56px; border-radius:12px; }
+  .slider { height:10px; border-radius:5px; background:linear-gradient(90deg,#222,#fff); margin:18px 4px 6px;
+            position:relative; }
+  .slider .knob { position:absolute; top:-7px; left:62%; width:24px; height:24px; border-radius:50%;
+                  background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.3); border:2px solid #3f6ad8; }
+
+  /* 灵敏度步进 */
+  .step { display:flex; align-items:center; min-height:56px; border-top:1px solid #f0f1f3; }
+  .step:first-of-type { border-top:none; }
+  .step .label { font-size:14px; font-weight:600; }
+  .step .ctrl { margin-left:auto; display:flex; align-items:center; gap:12px; }
+  .step .pm { width:44px; height:44px; border-radius:11px; background:#eef0f3; font-size:22px; font-weight:700;
+              display:flex; align-items:center; justify-content:center; }
+  .step .val { width:48px; text-align:center; font-size:17px; font-weight:700; }
+
+  .hex { display:flex; gap:12px; align-items:center; }
+  .hex .inp { flex:1; height:56px; border-radius:12px; background:#eef0f3; display:flex; align-items:center;
+              padding:0 16px; font-family:monospace; font-size:16px; color:#5b6066; }
+</style>
+</head>
+<body>
+  <h1>设备控制台（脱离小程序）— 设计稿</h1>
+  <p class="note">横屏车机 · 大触控（按钮≥64dp）· 跟随车机深浅 · 此为浅色示意。左侧 Tab，右侧分区卡片。</p>
+
+  <!-- 首页 / 设备绑定（开源：任意机器人手动指派） -->
+  <div class="screen">
+    <div class="side">
+      <div class="logo">机器人控制台</div>
+      <div class="tab active"><span class="ic"></span>首页 / 绑定</div>
+      <div class="tab"><span class="ic"></span>运动板控制</div>
+      <div class="tab"><span class="ic"></span>氛围灯</div>
+      <div class="tab"><span class="ic"></span>场景助手</div>
+      <div class="tab"><span class="ic"></span>实时日志</div>
+    </div>
+    <div class="content">
+      <div class="grid">
+        <div class="card">
+          <div class="card-title">已绑定设备 <small>开源 · 换别的机器人重新指派即可</small></div>
+          <div class="sw-row"><div class="label">运动板<small>10:C7:71:57:EA:D9 · 已连接</small></div><button class="btn" style="width:120px;height:48px">重新指派</button></div>
+          <div class="sw-row"><div class="label">氛围灯<small>14:C1:9F:39:E4:15 · 已连接</small></div><button class="btn" style="width:120px;height:48px">重新指派</button></div>
+          <div style="font-size:12px;color:#8a9098;margin-top:12px">未绑定时回退按名前缀(MIDBOW1S/ET-ROBOT-01)自动连，保证开箱即用；绑定后按 MAC 精确匹配。</div>
+        </div>
+        <div class="card">
+          <div class="card-title">扫描到的 BLE 设备 <small>点一台 → 指派为 运动板/氛围灯</small></div>
+          <div class="sw-row"><div class="label">MIDBOW1S_C710<small>10:C7:71:57:EA:D9 · -52dBm</small></div><div class="row2" style="width:200px"><button class="btn" style="height:44px">运动板</button><button class="btn" style="height:44px">氛围灯</button></div></div>
+          <div class="sw-row"><div class="label">ET-ROBOT-01<small>14:C1:9F:39:E4:15 · -60dBm</small></div><div class="row2" style="width:200px"><button class="btn" style="height:44px">运动板</button><button class="btn" style="height:44px">氛围灯</button></div></div>
+          <div class="sw-row"><div class="label">未知设备<small>A4:C1:38:xx:xx · -78dBm</small></div><div class="row2" style="width:200px"><button class="btn" style="height:44px">运动板</button><button class="btn" style="height:44px">氛围灯</button></div></div>
+        </div>
+        <div class="card full">
+          <div class="card-title">连接状态 / 信号总开关</div>
+          <div class="row3">
+            <button class="btn">运动板：<small>已连接</small></button>
+            <button class="btn">氛围灯：<small>已连接</small></button>
+            <button class="btn">重新扫描</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen">
+    <!-- 侧栏 -->
+    <div class="side">
+      <div class="logo">机器人控制台</div>
+      <div class="tab"><span class="ic"></span>首页 / 绑定</div>
+      <div class="tab active"><span class="ic"></span>运动板控制</div>
+      <div class="tab"><span class="ic"></span>氛围灯</div>
+      <div class="tab"><span class="ic"></span>场景助手</div>
+      <div class="tab"><span class="ic"></span>实时日志</div>
+    </div>
+
+    <!-- 运动板内容 -->
+    <div class="content">
+      <div class="grid">
+        <!-- 方向 -->
+        <div class="card">
+          <div class="card-title">方向控制 <small>FE55 01~05 + JSON wheel_1</small></div>
+          <div class="wheel">
+            <div class="btn sp"></div><div class="btn">上</div><div class="btn sp"></div>
+            <div class="btn">左</div><div class="btn c">停</div><div class="btn">右</div>
+            <div class="btn sp"></div><div class="btn">下</div><div class="btn sp"></div>
+          </div>
+        </div>
+
+        <!-- 音乐律动 -->
+        <div class="card">
+          <div class="card-title">音乐律动</div>
+          <div class="row2" style="margin-bottom:12px">
+            <button class="btn">律动减速 <small>E0</small></button>
+            <button class="btn">律动加速 <small>E1</small></button>
+          </div>
+          <div class="sw-row"><div class="label">自适应律动<small>跟舱内声音律动 · F0/F2</small></div><div class="switch off"></div></div>
+          <div class="card-title" style="margin-top:14px">随机动作池 <small>FE55 80+mask</small></div>
+          <div class="pool">
+            <div class="slot">1</div><div class="slot on">2</div><div class="slot">3</div><div class="slot">4</div><div class="slot">5</div>
+          </div>
+        </div>
+
+        <!-- 声音 -->
+        <div class="card">
+          <div class="card-title">声音 / 音效</div>
+          <div class="sw-row"><div class="label">声音总开关<small>FA 开 / EF 关</small></div><div class="switch on"></div></div>
+          <div class="sw-row"><div class="label">唤醒&退出音效<small>EC 开 / EB 关</small></div><div class="switch on"></div></div>
+        </div>
+
+        <!-- 工作模式 + 电机 -->
+        <div class="card">
+          <div class="card-title">工作模式 / 电机</div>
+          <div class="row2" style="margin-bottom:12px">
+            <button class="btn">声源定位 <small>00</small></button>
+            <button class="btn">专用词 <small>FC</small></button>
+          </div>
+          <div class="sw-row"><div class="label">电机电源<small>通电 CE / 断电 E4+CF</small></div><div class="switch on"></div></div>
+        </div>
+
+        <!-- 高级/自定义 -->
+        <div class="card full">
+          <div class="card-title">高级 · 自定义指令 <small>FE 55 10 [XX] 55 FE</small></div>
+          <div class="hex">
+            <div class="inp">FE 55 10 <b style="color:#3f6ad8">ED</b> 55 FE</div>
+            <button class="btn primary" style="width:140px">发送</button>
+            <button class="btn" style="width:140px">电机校准</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 眼睛板 -->
+  <div class="screen" style="margin-top:32px">
+    <div class="side">
+      <div class="logo">机器人控制台</div>
+      <div class="tab"><span class="ic"></span>首页 / 绑定</div>
+      <div class="tab"><span class="ic"></span>运动板控制</div>
+      <div class="tab active"><span class="ic"></span>氛围灯</div>
+      <div class="tab"><span class="ic"></span>场景助手</div>
+      <div class="tab"><span class="ic"></span>实时日志</div>
+    </div>
+    <div class="content">
+      <div class="grid">
+        <div class="card">
+          <div class="card-title">氛围灯颜色 <small>A1 14 · BGR+亮度</small></div>
+          <div class="swatches">
+            <div class="sw-color" style="background:#ff4d4f"></div>
+            <div class="sw-color" style="background:#ff9f43"></div>
+            <div class="sw-color" style="background:#ffe14d"></div>
+            <div class="sw-color" style="background:#2ed573"></div>
+            <div class="sw-color" style="background:#1e90ff"></div>
+            <div class="sw-color" style="background:#5f27cd"></div>
+            <div class="sw-color" style="background:#ff6b9d"></div>
+            <div class="sw-color" style="background:#ffffff;border:1px solid #e0e0e0"></div>
+          </div>
+          <div class="slider"><div class="knob"></div></div>
+          <div style="text-align:center;font-size:12px;color:#8a9098">亮度</div>
+          <div class="sw-row" style="margin-top:8px"><div class="label">自动亮度<small>A1 CF · 随环境</small></div><div class="switch off"></div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">触发灵敏度 <small>A1 CC · 实车标定</small></div>
+          <div class="step"><div class="label">左转向</div><div class="ctrl"><div class="pm">−</div><div class="val">12</div><div class="pm">+</div></div></div>
+          <div class="step"><div class="label">右转向</div><div class="ctrl"><div class="pm">−</div><div class="val">12</div><div class="pm">+</div></div></div>
+          <div class="step"><div class="label">急加速</div><div class="ctrl"><div class="pm">−</div><div class="val">20</div><div class="pm">+</div></div></div>
+          <div class="step"><div class="label">急刹车</div><div class="ctrl"><div class="pm">−</div><div class="val">20</div><div class="pm">+</div></div></div>
+          <div class="step"><div class="label">静音阈值</div><div class="ctrl"><div class="pm">−</div><div class="val">50</div><div class="pm">+</div></div></div>
+          <div class="step"><div class="label">响度阈值</div><div class="ctrl"><div class="pm">−</div><div class="val">600</div><div class="pm">+</div></div></div>
+        </div>
+
+        <div class="card full">
+          <div class="card-title">系统管理</div>
+          <div class="row3">
+            <button class="btn">传感器校准 <small>CD 01</small></button>
+            <button class="btn">设备改名 <small>A1 08</small></button>
+            <button class="btn">重启 <small>A1 10</small></button>
+            <button class="btn warn">恢复出厂 <small>A1 11</small></button>
+            <button class="btn">状态查询 <small>A1 05</small></button>
+            <button class="btn">同步时间 <small>A1 01</small></button>
+          </div>
+          <div style="font-size:12px;color:#8a9098;margin-top:12px">
+            注：固件/表情 OTA 文件传输（A1 0C/0D/20/21）协议复杂且有刷砖风险，建议作为后续阶段单独做，本期先不放主控台。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

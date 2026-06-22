@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 深浅色跟随车机系统：DayNight -->
+    <style name="Theme.ZKVision" parent="Theme.Material3.DayNight">
+    </style>
+
+    <!-- 规则编辑页：字段标签 -->
+    <style name="EditorLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">12dp</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:alpha">0.7</item>
+    </style>
+</resources>

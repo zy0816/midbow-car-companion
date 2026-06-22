@@ -1,0 +1,4 @@
+// Top-level build file for ZKVision (车载情感机器人)
+plugins {
+    id 'com.android.application' version '7.4.2' apply false
+}

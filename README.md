@@ -1,0 +1,99 @@
+# 米德宝车机联动版
+
+把车机的状态与事件（语音助手、音乐、车门、导航、盲区、急加速急刹、碰撞、转向灯、胎压、充电、氛围灯、昼夜/冷热/驾驶模式）联动到一台 **BLE 桌面机器人**，让机器人随车「有反应」：转头、点头、摇头、前倾后仰、底部氛围灯变色等。同时内置一个**设备控制台**，可直接控制机器人（脱离厂商微信小程序），以及**设备绑定**让别的机器人也能接入。
+
+> 个人项目，面向 **ecarx 系安卓车机**。运行依赖平台签名与车机自带的 ecarx framework，普通手机/模拟器只能编译、信号联动会静默降级。
+
+---
+
+## 功能
+
+### 信号联动（车机事件 → 机器人自动反应）
+- **语音唤醒转向**：接车机语音助手 VR SDK，唤醒朝说话人座位转头；聆听/思考/说话有对应动作与灯色
+- **音乐律动**：用系统活动媒体会话精确判定「真在放音乐」（过滤导航/语音 TTS），放歌才律动
+- **上车问候**：开门朝开门侧转头问候，关门回正
+- **导航转向**：跟随导航转弯提示转头
+- **车辆状态联动（场景助手）**：盲区扭头、急加速后仰/急刹前倾、碰撞受惊、转向灯转头、胎压告警、氛围灯同步、驾驶模式人格、昼夜明暗、冷热反应、充电睡眠/充满庆祝
+
+### 场景助手（自定义规则）
+- 预置规则可单独开关/删除
+- 可新建自定义规则：选车机触发（功能/传感量 + 比较运算）→ 选机器人动作
+
+### 设备控制台（脱离厂商小程序）
+- **运动板**：方向、电机通断电、声音/唤醒音开关、律动加减速、自适应律动、工作模式（声源定位/专用词）、特殊·快捷指令、随机动作池
+- **氛围灯**：预设色、亮度、自动亮度、灵敏度（左右转/加速/刹车/静音/响度）、校准·重启·复位·激活、同步时间·状态查询
+- 出于安全**不含** OTA 文件传输（刷砖风险）
+
+### 设备绑定（让别的机器人也能用）
+- 扫描周围全部 BLE 设备，手动指派哪台是运动板、哪台是氛围灯，按 MAC 绑定
+- 未绑定时回退到出厂广播名前缀自动识别
+
+---
+
+## 硬件与协议
+
+两路独立 BLE 端点，各自连接、各自下发：
+
+| 端点 | 出厂名前缀 | 协议 | 写 / 通知特征片段 |
+|------|-----------|------|------------------|
+| 运动板 | `MIDBOW1S` | FE55：`FE 55 10 [cmd] 55 FE` | `ae10` / `ae05` |
+| 氛围灯（机器人底部氛围灯，非「眼睛」） | `ET-ROBOT-01` | a1：`A1 [cmd] [seq] [len] [payload]` | `c02e69c2` / `d914e6b6` |
+
+特征 UUID 为固件级、跨单元一致；接入别的同款机器人只需在「设备绑定」里映射其 MAC。命令定义见 `protocol/MotionProtocol.java` 与 `protocol/EyesProtocol.java`。
+
+---
+
+## 工程结构
+
+```
+app/src/main/java/com/midbows/zkvision/
+├── ble/         BLE 连接管理、端点、写队列流控、断线自愈、动作出口（RobotController）
+├── protocol/    FE55 / a1 纯构帧逻辑（唯一构帧点）
+├── behavior/    行为引擎、动作编排、优先级仲裁、情绪/灯色
+├── signal/      各信号源监听器、ecarx 车控封装、VHAL 反射读取、规则引擎
+├── automation/  场景助手规则模型与存储、触发/动作目录
+├── service/     前台常驻服务、开机自启
+├── data/        设置读写（含绑定 MAC）
+├── ui/          主界面 / 控制台 / 绑定 / 场景助手
+└── util/        Hex、日志
+```
+
+依赖单向：`ui/service → signal/behavior → ble → protocol`。
+
+---
+
+## 构建
+
+仓库已自带 `platform.keystore`（AOSP 公开测试平台密钥 test-keys）。需要你自备两样**不随仓库分发**、与具体车机相关的东西：
+
+1. **ecarx framework jar** —— 车控 API（`com.ecarx.xui.adaptapi`），车机平台方私有 framework。从你自己的车机 boot classpath 中抽取对应的 jar，放到 `app/libs/ecarx-adaptapi.jar`（`compileOnly`，不打包进 APK）。
+2. **VR SDK 类名配置** —— 语音助手联动用反射调用车机 VR SDK，其类名与车型相关。把 `app/src/main/java/com/midbows/zkvision/signal/VrSdkConfig.java.example` 复制为同目录 `VrSdkConfig.java`，填入你车机 VR SDK 的真实类名（可用 jadx 反编译车机语音 APK 获取）。不填则语音联动静默降级，其余功能不受影响。
+
+> 盲区等实时信号通过反射 `android.car.CarPropertyManager` 读取，无需额外 SDK；属性 ID 在 `BlindSpotMonitor` 常量里，按车型调整。
+
+```bash
+./gradlew :app:assembleRelease
+```
+
+### 为什么必须平台签名 + system uid
+- `AndroidManifest.xml` 声明 `android:sharedUserId="android.uid.system"`，并使用 `signature|privileged` 级权限（`CAR_VENDOR_EXTENSION`、`MEDIA_CONTENT_CONTROL` 等）。
+- 这些只有用**车机固件对应的平台密钥**签名、且与 system 同 uid 才会被授予。
+- 本项目随仓库提供的 `platform.keystore` 是 AOSP 公开 test-keys——不少车机 ROM 量产固件正是用它签名，故在这类车机上可开箱即用；若你的车机用了私有平台密钥，请替换为对应密钥。
+- **注意**：一旦 app 以 system uid 安装，更换/升级前需先卸载旧版，无法直接覆盖升级。
+
+---
+
+## 适配其它车 / 其它机器人
+
+- **其它机器人**：用「设备绑定」按 MAC 指派即可，无需改码（同款固件特征一致）。不同协议的机器人需扩展 `protocol/` 与 `RobotController`。
+- **其它车机**：信号源集中在 `signal/` 包，多数基于 ecarx `adaptapi` 与 `android.car` 标准接口；换平台主要改各 `*Monitor` 的属性/传感 ID。
+
+---
+
+## 免责声明
+
+仅供学习与个人改装。涉及车机系统权限、蓝牙外设与逆向适配，使用风险自负；请勿在行车中操作控制台。OTA/刷写类命令已刻意排除以避免设备变砖。
+
+## License
+
+[MIT](LICENSE)。机器人 BLE 协议（FE55 / a1）已获机器人厂家同意公开；涉及车企的 ecarx 私有 framework jar 不随仓库分发。

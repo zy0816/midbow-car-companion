@@ -1,0 +1,132 @@
+package com.midbows.zkvision.automation;
+
+import com.ecarx.xui.adaptapi.car.hev.ICharging;
+import com.ecarx.xui.adaptapi.car.sensor.ISensor;
+import com.ecarx.xui.adaptapi.car.sensor.ITireSensor;
+import com.ecarx.xui.adaptapi.car.vehicle.IADAS;
+import com.ecarx.xui.adaptapi.car.vehicle.IBcm;
+import com.ecarx.xui.adaptapi.car.vehicle.IDriveMode;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * 自定义场景规则可选「触发源（车机指令）」目录。
+ *
+ * <p>每个 {@link TriggerDef} 把一个 ecarx 车身功能/传感封装成对用户友好的可选项，供规则编辑页
+ * 下拉选择；{@code RuleEngine} 据 {@link #kind}/{@link #id} 订阅对应监听，回调值用规则的
+ * {@link Comparator} 判定。值类型 {@link ValueKind} 决定编辑页是开关/枚举下拉/数值输入。
+ */
+public final class TriggerCatalog {
+
+    /** 监听种类：车身功能值 / 传感离散态 / 传感连续量。 */
+    public enum Kind { FUNCTION, SENSOR_EVENT, SENSOR_VALUE }
+
+    /** 取值形态：开关(ON/OFF) / 枚举(下拉) / 数值(输入)。 */
+    public enum ValueKind { BOOL, ENUM, NUMBER }
+
+    /** 枚举型可选值。 */
+    public static final class Option {
+        public final int value;
+        public final String label;
+
+        public Option(int value, String label) {
+            this.value = value;
+            this.label = label;
+        }
+    }
+
+    public static final class TriggerDef {
+        public final String key;
+        public final String name;
+        public final Kind kind;
+        public final int id;
+        public final int zone;
+        public final ValueKind valueKind;
+        public final List<Option> options;
+        /** 连续量是否为浮点（加速度/温度）；整型功能/传感为 false。 */
+        public final boolean floatValue;
+
+        TriggerDef(String key, String name, Kind kind, int id, ValueKind valueKind,
+                   List<Option> options, boolean floatValue) {
+            this.key = key;
+            this.name = name;
+            this.kind = kind;
+            this.id = id;
+            this.zone = -1;
+            this.valueKind = valueKind;
+            this.options = options == null ? Collections.emptyList() : options;
+            this.floatValue = floatValue;
+        }
+    }
+
+    private static final int ON = com.ecarx.xui.adaptapi.car.base.ICarFunction.COMMON_VALUE_ON;
+    private static final int OFF = com.ecarx.xui.adaptapi.car.base.ICarFunction.COMMON_VALUE_OFF;
+
+    private static final List<TriggerDef> ALL = build();
+
+    private TriggerCatalog() {
+    }
+
+    public static List<TriggerDef> all() {
+        return ALL;
+    }
+
+    public static TriggerDef byKey(String key) {
+        for (TriggerDef d : ALL) {
+            if (d.key.equals(key)) {
+                return d;
+            }
+        }
+        return null;
+    }
+
+    private static List<Option> onOff() {
+        List<Option> l = new ArrayList<>();
+        l.add(new Option(ON, "开/有"));
+        l.add(new Option(OFF, "关/无"));
+        return l;
+    }
+
+    private static List<TriggerDef> build() {
+        List<TriggerDef> l = new ArrayList<>();
+        // —— 车身功能 ——
+        l.add(new TriggerDef("door", "车门", Kind.FUNCTION, IBcm.BCM_FUNC_DOOR,
+                ValueKind.BOOL, onOff(), false));
+        l.add(new TriggerDef("charging", "充电状态", Kind.FUNCTION, ICharging.CHARGE_FUNC_CHARGING,
+                ValueKind.BOOL, onOff(), false));
+        l.add(new TriggerDef("soc", "充电电量(%)", Kind.FUNCTION, ICharging.CHARGE_FUNC_CHARGING_SOC,
+                ValueKind.NUMBER, null, false));
+        l.add(new TriggerDef("fcw", "前向碰撞预警", Kind.FUNCTION, IADAS.SETTING_FUNC_FORWARD_COLLISION_WARN,
+                ValueKind.BOOL, onOff(), false));
+        List<Option> bsd = new ArrayList<>();
+        bsd.add(new Option(0, "无"));
+        bsd.add(new Option(1, "左侧"));
+        bsd.add(new Option(2, "右侧"));
+        bsd.add(new Option(3, "两侧"));
+        l.add(new TriggerDef("bsd", "盲区告警", Kind.FUNCTION, IADAS.SETTING_FUNC_BLIND_SPOT_DETECTION_WARNING,
+                ValueKind.ENUM, bsd, false));
+        l.add(new TriggerDef("turn_left", "左转向灯", Kind.FUNCTION, IBcm.BCM_FUNC_LIGHT_LEFT_TRUN_SIGNAL,
+                ValueKind.BOOL, onOff(), false));
+        l.add(new TriggerDef("turn_right", "右转向灯", Kind.FUNCTION, IBcm.BCM_FUNC_LIGHT_RIGHT_TRUN_SIGNAL,
+                ValueKind.BOOL, onOff(), false));
+        l.add(new TriggerDef("drive_mode", "驾驶模式(值)", Kind.FUNCTION, IDriveMode.DM_FUNC_DRIVE_MODE_SELECT,
+                ValueKind.NUMBER, null, false));
+        // —— 传感离散态 ——
+        l.add(new TriggerDef("seat_driver", "主驾就座", Kind.SENSOR_EVENT,
+                ISensor.SENSOR_TYPE_SEAT_OCCUPATION_STATUS_DRIVER, ValueKind.NUMBER, null, false));
+        l.add(new TriggerDef("seat_passenger", "副驾就座", Kind.SENSOR_EVENT,
+                ISensor.SENSOR_TYPE_SEAT_OCCUPATION_STATUS_PASSENGER, ValueKind.NUMBER, null, false));
+        l.add(new TriggerDef("gear", "挡位(值)", Kind.SENSOR_EVENT, ISensor.SENSOR_TYPE_GEAR,
+                ValueKind.NUMBER, null, false));
+        l.add(new TriggerDef("tire", "胎压系统态(值)", Kind.SENSOR_EVENT, ITireSensor.TIRE_TPMS_SYS_STATES,
+                ValueKind.NUMBER, null, false));
+        // —— 传感连续量（阈值，浮点）——
+        l.add(new TriggerDef("accel", "纵向加速度(m/s²)", Kind.SENSOR_VALUE,
+                ISensor.SENSOR_TYPE_SPEED_LON_ACCELERATION, ValueKind.NUMBER, null, true));
+        l.add(new TriggerDef("temp", "车内温度(℃)", Kind.SENSOR_VALUE,
+                ISensor.SENSOR_TYPE_TEMPERATURE_INDOOR, ValueKind.NUMBER, null, true));
+        return l;
+    }
+}
