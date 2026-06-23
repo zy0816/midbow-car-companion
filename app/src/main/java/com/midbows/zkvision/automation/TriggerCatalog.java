@@ -2,6 +2,7 @@ package com.midbows.zkvision.automation;
 
 import com.ecarx.xui.adaptapi.car.hev.ICharging;
 import com.ecarx.xui.adaptapi.car.sensor.ISensor;
+import com.ecarx.xui.adaptapi.car.sensor.ISensorEvent;
 import com.ecarx.xui.adaptapi.car.sensor.ITireSensor;
 import com.ecarx.xui.adaptapi.car.vehicle.IADAS;
 import com.ecarx.xui.adaptapi.car.vehicle.IBcm;
@@ -89,6 +90,50 @@ public final class TriggerCatalog {
         return l;
     }
 
+    /** 挡位：传感事件回传 ISensorEvent.GEAR_* 值，列常用 P/R/N/D。 */
+    private static List<Option> gearOptions() {
+        List<Option> l = new ArrayList<>();
+        l.add(new Option(ISensorEvent.GEAR_PARK, "P 驻车"));
+        l.add(new Option(ISensorEvent.GEAR_REVERSE, "R 倒车"));
+        l.add(new Option(ISensorEvent.GEAR_NEUTRAL, "N 空挡"));
+        l.add(new Option(ISensorEvent.GEAR_DRIVE, "D 前进"));
+        return l;
+    }
+
+    /** 座椅占用：ISensorEvent.SEAT_OCCUPATION_STATUS_*。 */
+    private static List<Option> seatOptions() {
+        List<Option> l = new ArrayList<>();
+        l.add(new Option(ISensorEvent.SEAT_OCCUPATION_STATUS_OCCUPIED, "有人"));
+        l.add(new Option(ISensorEvent.SEAT_OCCUPATION_STATUS_NONE, "无人"));
+        return l;
+    }
+
+    /** 胎压系统态：ITireSensor.TPMS_STATES_*。 */
+    private static List<Option> tireOptions() {
+        List<Option> l = new ArrayList<>();
+        l.add(new Option(ITireSensor.TPMS_STATES_NO_WARN, "正常"));
+        l.add(new Option(ITireSensor.TPMS_STATES_CMN_WARN, "通用告警"));
+        l.add(new Option(ITireSensor.TPMS_STATES_FL_WARN, "左前告警"));
+        l.add(new Option(ITireSensor.TPMS_STATES_FR_WARN, "右前告警"));
+        l.add(new Option(ITireSensor.TPMS_STATES_RL_WARN, "左后告警"));
+        l.add(new Option(ITireSensor.TPMS_STATES_RR_WARN, "右后告警"));
+        l.add(new Option(ITireSensor.TPMS_STATES_SYS_FAILURE, "系统故障"));
+        return l;
+    }
+
+    /** 驾驶模式：DM_FUNC_DRIVE_MODE_SELECT 回传 IDriveMode.DRIVE_MODE_SELECTION_* 值（车型相关，列常用项）。 */
+    private static List<Option> driveModeOptions() {
+        List<Option> l = new ArrayList<>();
+        l.add(new Option(IDriveMode.DRIVE_MODE_SELECTION_ECO, "经济"));
+        l.add(new Option(IDriveMode.DRIVE_MODE_SELECTION_COMFORT, "舒适"));
+        l.add(new Option(IDriveMode.DRIVE_MODE_SELECTION_NORMAL, "标准"));
+        l.add(new Option(IDriveMode.DRIVE_MODE_SELECTION_DYNAMIC, "运动"));
+        l.add(new Option(IDriveMode.DRIVE_MODE_SPORT_PLUS, "运动+"));
+        l.add(new Option(IDriveMode.DRIVE_MODE_SELECTION_SNOW, "雪地"));
+        l.add(new Option(IDriveMode.DRIVE_MODE_SELECTION_OFFROAD, "越野"));
+        return l;
+    }
+
     private static List<TriggerDef> build() {
         List<TriggerDef> l = new ArrayList<>();
         // —— 车身功能 ——
@@ -111,19 +156,19 @@ public final class TriggerCatalog {
                 ValueKind.BOOL, onOff(), false));
         l.add(new TriggerDef("turn_right", "右转向灯", Kind.FUNCTION, IBcm.BCM_FUNC_LIGHT_RIGHT_TRUN_SIGNAL,
                 ValueKind.BOOL, onOff(), false));
-        l.add(new TriggerDef("drive_mode", "驾驶模式(值)", Kind.FUNCTION, IDriveMode.DM_FUNC_DRIVE_MODE_SELECT,
-                ValueKind.NUMBER, null, false));
+        l.add(new TriggerDef("drive_mode", "驾驶模式", Kind.FUNCTION, IDriveMode.DM_FUNC_DRIVE_MODE_SELECT,
+                ValueKind.ENUM, driveModeOptions(), false));
         // —— 传感离散态 ——
         l.add(new TriggerDef("seat_driver", "主驾就座", Kind.SENSOR_EVENT,
-                ISensor.SENSOR_TYPE_SEAT_OCCUPATION_STATUS_DRIVER, ValueKind.NUMBER, null, false));
+                ISensor.SENSOR_TYPE_SEAT_OCCUPATION_STATUS_DRIVER, ValueKind.ENUM, seatOptions(), false));
         l.add(new TriggerDef("seat_passenger", "副驾就座", Kind.SENSOR_EVENT,
-                ISensor.SENSOR_TYPE_SEAT_OCCUPATION_STATUS_PASSENGER, ValueKind.NUMBER, null, false));
-        l.add(new TriggerDef("gear", "挡位(值)", Kind.SENSOR_EVENT, ISensor.SENSOR_TYPE_GEAR,
-                ValueKind.NUMBER, null, false));
-        l.add(new TriggerDef("tire", "胎压系统态(值)", Kind.SENSOR_EVENT, ITireSensor.TIRE_TPMS_SYS_STATES,
-                ValueKind.NUMBER, null, false));
+                ISensor.SENSOR_TYPE_SEAT_OCCUPATION_STATUS_PASSENGER, ValueKind.ENUM, seatOptions(), false));
+        l.add(new TriggerDef("gear", "挡位", Kind.SENSOR_EVENT, ISensor.SENSOR_TYPE_GEAR,
+                ValueKind.ENUM, gearOptions(), false));
+        l.add(new TriggerDef("tire", "胎压状态", Kind.SENSOR_EVENT, ITireSensor.TIRE_TPMS_SYS_STATES,
+                ValueKind.ENUM, tireOptions(), false));
         // —— 传感连续量（阈值，浮点）——
-        l.add(new TriggerDef("accel", "纵向加速度(m/s²)", Kind.SENSOR_VALUE,
+        l.add(new TriggerDef("accel", "纵向加速度(约g,静止≈0.0x)", Kind.SENSOR_VALUE,
                 ISensor.SENSOR_TYPE_SPEED_LON_ACCELERATION, ValueKind.NUMBER, null, true));
         l.add(new TriggerDef("temp", "车内温度(℃)", Kind.SENSOR_VALUE,
                 ISensor.SENSOR_TYPE_TEMPERATURE_INDOOR, ValueKind.NUMBER, null, true));

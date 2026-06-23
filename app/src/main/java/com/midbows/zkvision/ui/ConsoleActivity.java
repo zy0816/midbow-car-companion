@@ -5,17 +5,23 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.text.InputType;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.android.material.materialswitch.MaterialSwitch;
 import com.midbows.zkvision.ble.BleManager;
 import com.midbows.zkvision.ble.RobotController;
 import com.midbows.zkvision.protocol.EyesProtocol;
+
+import java.util.function.Consumer;
 
 /**
  * 设备控制台：复刻微信小程序的<b>全部</b>直接控制功能，使其可脱离小程序使用。
@@ -42,17 +48,109 @@ public final class ConsoleActivity extends AppCompatActivity {
         scroll.addView(root);
         setContentView(scroll);
 
+        root.addView(backBar());
         root.addView(title("设备控制台"));
-        root.addView(hint("照搬小程序的直接控制；不含 OTA 文件传输（刷砖风险）。"));
+        root.addView(hint("照搬小程序的直接控制；不含 OTA 文件传输（刷砖风险）。"
+                + "蓝牙为单向下发，提示仅表示命令已发出。"));
 
         buildMotionSection(root);
+        buildExpressionSection(root);
         buildLightSection(root);
+    }
+
+    // ---------------- 表情（FE55 表情字节，眼屏） ----------------
+
+    /** 厂家已确认的 18 个表情：{hex, 名称}。0x13 音乐仅动作无表情，单列出来标注。 */
+    private static final String[][] EXPRESSIONS = {
+            {"06", "生气"}, {"07", "笑一个"}, {"08", "比个心"}, {"09", "眨眼睛"},
+            {"0A", "开心"}, {"0B", "难过"}, {"0C", "再眨眼睛"}, {"0D", "装酷"},
+            {"0E", "坏笑"}, {"0F", "放烟花"}, {"10", "石头剪刀布"}, {"11", "害怕"},
+            {"12", "晕头转向"}, {"13", "音乐(仅动作)"}, {"1A", "害羞"}, {"23", "情人节快乐"},
+            {"24", "玫瑰花"}, {"26", "吃月饼"},
+    };
+
+    private void buildExpressionSection(LinearLayout root) {
+        root.addView(section("表情"));
+        root.addView(hint("眼屏表情，经运动板下发（FE 55 10 [字节] 55 FE）。"));
+
+        LinearLayout row = null;
+        for (int i = 0; i < EXPRESSIONS.length; i++) {
+            if (i % 4 == 0) {
+                row = hbox();
+                root.addView(row);
+            }
+            final byte cmd = (byte) Integer.parseInt(EXPRESSIONS[i][0], 16);
+            final String name = EXPRESSIONS[i][1];
+            Button b = makeButton(name);
+            b.setOnClickListener(v -> {
+                robot.playExpression(cmd);
+                toast("已发送表情：" + name);
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, BTN_H, 1f);
+            lp.rightMargin = GAP;
+            row.addView(b, lp);
+        }
+
+        // 字节探索器：扫描「好热/好冷」等未公开表情字节（对照小程序「特殊指令」）。
+        root.addView(section("表情探索（实车扫未公开字节）"));
+        root.addView(hint("输入 1 字节十六进制（如 14）发 FE5510[XX]55FE，看眼屏出什么；"
+                + "或用「上/下一字节」逐个扫，记下好热/好冷等对应字节。"
+                + "已知：0x25=摇头晃脑(动作非表情)、0x26=吃月饼。"));
+
+        final EditText hexInput = new EditText(this);
+        hexInput.setInputType(InputType.TYPE_CLASS_TEXT);
+        hexInput.setText("14");
+        hexInput.setTextSize(16);
+
+        Runnable sendHex = () -> {
+            String s = hexInput.getText().toString().trim();
+            try {
+                int v = Integer.parseInt(s, 16) & 0xFF;
+                hexInput.setText(String.format("%02X", v));
+                robot.playExpression((byte) v);
+                toast("已发送字节：0x" + String.format("%02X", v));
+            } catch (NumberFormatException e) {
+                toast("请输入有效的十六进制字节（00~FF）");
+            }
+        };
+
+        LinearLayout sendRow = hbox();
+        LinearLayout.LayoutParams inLp = new LinearLayout.LayoutParams(0, BTN_H, 2f);
+        inLp.rightMargin = GAP;
+        sendRow.addView(hexInput, inLp);
+        Button sendBtn = makeButton("发送");
+        sendBtn.setOnClickListener(v -> sendHex.run());
+        LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(0, BTN_H, 1f);
+        sendRow.addView(sendBtn, sLp);
+        root.addView(sendRow);
+
+        root.addView(buttonRow(
+                stepBtn("上一字节", hexInput, -1),
+                stepBtn("下一字节", hexInput, +1)));
+    }
+
+    /** 字节步进按钮：把输入框的十六进制值 ±1 后立即发送，便于逐个扫描。 */
+    private View stepBtn(String text, EditText hexInput, int delta) {
+        Button b = makeButton(text);
+        b.setOnClickListener(v -> {
+            int cur;
+            try {
+                cur = Integer.parseInt(hexInput.getText().toString().trim(), 16);
+            } catch (NumberFormatException e) {
+                cur = 0;
+            }
+            int next = (cur + delta) & 0xFF;
+            hexInput.setText(String.format("%02X", next));
+            robot.playExpression((byte) next);
+            toast("已发送字节：0x" + String.format("%02X", next));
+        });
+        return b;
     }
 
     // ---------------- 运动板（FE55） ----------------
 
     private void buildMotionSection(LinearLayout root) {
-        root.addView(section("运动板"));
+        root.addView(section("机器人本体"));
 
         root.addView(buttonRow(
                 btn("上", () -> robot.look(com.midbows.zkvision.protocol.MotionProtocol.DIR_UP)),
@@ -61,27 +159,23 @@ public final class ConsoleActivity extends AppCompatActivity {
                 btn("右", () -> robot.look(com.midbows.zkvision.protocol.MotionProtocol.DIR_RIGHT)),
                 btn("中/停", robot::center)));
 
-        root.addView(buttonRow(
-                btn("电机通电", robot::motorOn),
-                btn("电机断电", robot::motorOff),
-                btn("声音开", () -> robot.soundEnabled(true)),
-                btn("声音关", () -> robot.soundEnabled(false))));
+        // 本质是开关的项改用单个 Switch（去掉「开/关」双按钮）。设备无状态回读，初值取常见默认。
+        root.addView(switchRow(
+                sw("电机供电", true, on -> { if (on) robot.motorOn(); else robot.motorOff(); }),
+                sw("声音", true, robot::soundEnabled),
+                sw("唤醒音", true, robot::wakeSoundEnabled),
+                sw("自适应律动", false, robot::selfAdaptiveRhythm)));
 
         root.addView(buttonRow(
-                btn("唤醒音开", () -> robot.wakeSoundEnabled(true)),
-                btn("唤醒音关", () -> robot.wakeSoundEnabled(false)),
                 btn("律动加速", robot::rhythmFaster),
-                btn("律动减速", robot::rhythmSlower)));
-
-        root.addView(buttonRow(
-                btn("自适应律动开", () -> robot.selfAdaptiveRhythm(true)),
-                btn("自适应律动关", () -> robot.selfAdaptiveRhythm(false)),
+                btn("律动减速", robot::rhythmSlower),
                 btn("声源定位", robot::modeLocalize),
                 btn("专用词", robot::modeKeyword)));
 
         root.addView(buttonRow(
                 btn("特殊指令", robot::specialDefault),
                 btn("快捷指令", robot::shortcut),
+                btn("摇头晃脑", robot::wobble),
                 btn("查询动作池", robot::randomPoolQuery)));
 
         // 随机动作池：5 位掩码，每位一个开关，组合后下发。
@@ -194,6 +288,7 @@ public final class ConsoleActivity extends AppCompatActivity {
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
                 sink.apply(seekBar.getProgress());
+                toast("已发送：" + seekBar.getProgress());
             }
         });
         LinearLayout.LayoutParams barLp =
@@ -218,8 +313,52 @@ public final class ConsoleActivity extends AppCompatActivity {
 
     private View btn(String text, Runnable action) {
         Button b = makeButton(text);
-        b.setOnClickListener(v -> action.run());
+        b.setOnClickListener(v -> {
+            action.run();
+            toast("已发送：" + text);
+        });
         return b;
+    }
+
+    // ---------------- 返回键 / 开关行 / 提示 ----------------
+
+    /** 二级页统一返回键：蓝牙单向下发，提示仅表示命令已发出。 */
+    private View backBar() {
+        Button b = makeButton("← 返回");
+        b.setOnClickListener(v -> finish());
+        LinearLayout bar = hbox();
+        bar.addView(b, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return bar;
+    }
+
+    /** 本质是开关的项：单个 Switch（替代「开/关」双按钮）。设备无状态回读，初值取常见默认。 */
+    private MaterialSwitch sw(String name, boolean initial, Consumer<Boolean> sink) {
+        MaterialSwitch s = new MaterialSwitch(this);
+        s.setText(name);
+        s.setTextSize(16);
+        s.setChecked(initial);
+        s.setOnCheckedChangeListener((button, checked) -> {
+            sink.accept(checked);
+            toast(name + (checked ? "：开" : "：关"));
+        });
+        return s;
+    }
+
+    private View switchRow(View... switches) {
+        LinearLayout col = vbox();
+        col.setPadding(0, GAP, 0, 0);
+        for (View s : switches) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.topMargin = GAP;
+            col.addView(s, lp);
+        }
+        return col;
+    }
+
+    private void toast(String msg) {
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
 
     private Button makeButton(String text) {

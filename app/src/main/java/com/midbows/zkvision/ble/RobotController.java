@@ -112,6 +112,19 @@ public final class RobotController {
         ble.sendMotion(MotionProtocol.frame(MotionProtocol.SHORTCUT));
     }
 
+    /**
+     * 播放一个表情：{@code FE 55 10 [cmd] 55 FE} 经运动板下发、显示在眼屏。
+     * {@code cmd} 取 {@link MotionProtocol} 的 EXPR_* 常量；也可传任意字节用于实车扫描未公开表情。
+     */
+    public void playExpression(byte cmd) {
+        ble.sendMotion(MotionProtocol.frame(cmd));
+    }
+
+    /** 摇头晃脑：运动板内置摆头动作（FE55 字节 0x25），非眼屏表情。 */
+    public void wobble() {
+        ble.sendMotion(MotionProtocol.frame(MotionProtocol.MOTION_WOBBLE));
+    }
+
     /** 查询随机动作池（结果经通知回调返回）。 */
     public void randomPoolQuery() {
         ble.sendMotion(MotionProtocol.frame(MotionProtocol.RANDOM_POOL_QUERY));

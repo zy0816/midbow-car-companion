@@ -193,6 +193,11 @@ public final class EcarxCarManager {
         void onValue(int sensorType, float value);
     }
 
+    /** 车身功能浮点值（自定义值，如空调设定温度 22.5℃）回调。 */
+    public interface FunctionFloatCallback {
+        void onValue(int functionId, int zone, float value);
+    }
+
     /**
      * 监听某车身功能值变化（自动懒连接）。返回的 token 用于 {@link #unwatch(Object)}。
      * 各信号源只传 lambda，无需各自实现冗长的 ecarx 接口。
@@ -216,6 +221,17 @@ public final class EcarxCarManager {
     public Object watchSensorValue(Context context, int sensorType, SensorValueCallback cb) {
         SensorValueAdapter adapter = new SensorValueAdapter(sensorType, cb);
         watchSensor(sensorType, -1, adapter);
+        ensureConnected(context);
+        return adapter;
+    }
+
+    /**
+     * 监听某车身功能的<b>浮点自定义值</b>（如空调设定温度，走 {@code onCustomizeFunctionValueChanged}）。
+     * 返回的 token 用于 {@link #unwatch(Object)}。
+     */
+    public Object watchFunctionFloatValue(Context context, int functionId, FunctionFloatCallback cb) {
+        FunctionFloatAdapter adapter = new FunctionFloatAdapter(functionId, cb);
+        watchFunction(functionId, adapter);
         ensureConnected(context);
         return adapter;
     }
@@ -312,6 +328,39 @@ public final class EcarxCarManager {
 
         @Override
         public void onCustomizeFunctionValueChanged(int functionId, int zone, float value) {
+        }
+
+        @Override
+        public void onSupportedFunctionValueChanged(int functionId, int[] supportedValues) {
+        }
+
+        @Override
+        public void onSupportedFunctionStatusChanged(int functionId, int zone, FunctionStatus status) {
+        }
+    }
+
+    private static final class FunctionFloatAdapter implements ICarFunction.IFunctionValueWatcher {
+        private final int functionId;
+        private final FunctionFloatCallback cb;
+
+        FunctionFloatAdapter(int functionId, FunctionFloatCallback cb) {
+            this.functionId = functionId;
+            this.cb = cb;
+        }
+
+        @Override
+        public void onCustomizeFunctionValueChanged(int functionId, int zone, float value) {
+            if (functionId == this.functionId) {
+                cb.onValue(functionId, zone, value);
+            }
+        }
+
+        @Override
+        public void onFunctionValueChanged(int functionId, int zone, int value) {
+        }
+
+        @Override
+        public void onFunctionChanged(int functionId) {
         }
 
         @Override

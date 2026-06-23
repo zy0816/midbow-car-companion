@@ -136,6 +136,8 @@ public final class RuleEngine implements SignalSource {
                 return new AmbientLightMonitor(context, engine);
             case "cabintemp":
                 return new CabinTempMonitor(context, engine);
+            case "actemp":
+                return new AcTempMonitor(context, engine);
             default:
                 RobotLog.d(TAG, "未知预置键: " + key);
                 return null;

@@ -6,6 +6,7 @@ import android.os.HandlerThread;
 
 import com.ecarx.xui.adaptapi.car.sensor.ISensor;
 import com.midbows.zkvision.behavior.BehaviorEngine;
+import com.midbows.zkvision.data.SettingsManager;
 import com.midbows.zkvision.util.RobotLog;
 
 /**
@@ -91,13 +92,17 @@ final class AccelMonitor extends AbstractSignalSource {
 
     /** 判定并在状态跳变时上报；变化明显的原始值落 W 日志供实车标定。 */
     private void classifyAndDispatch(float value, String src) {
-        // 标定日志：与上次相差 ≥0.5 m/s² 才记，避免静止微抖刷屏。
-        if (Float.isNaN(lastLoggedValue) || Math.abs(value - lastLoggedValue) >= 0.5f) {
+        // 标定日志：与上次相差 ≥0.02（传感器原生量，约 g）才记，避免静止微抖刷屏。
+        if (Float.isNaN(lastLoggedValue) || Math.abs(value - lastLoggedValue) >= 0.02f) {
             lastLoggedValue = value;
-            RobotLog.w(TAG, "纵向加速度[" + src + "]=" + value + " m/s²");
+            RobotLog.w(TAG, "纵向加速度[" + src + "]=" + value + "（传感器原生量，约 g）");
         }
+        // 阈值实时取自用户设置，未设置回退出厂值；改完即生效、无需重连。
+        SettingsManager s = SettingsManager.getInstance(context);
         AccelReaction r = AccelReaction.classify(
-                value, CarThresholds.HARD_ACCEL_MS2, CarThresholds.HARD_BRAKE_MS2);
+                value,
+                s.getFloat(SettingsManager.KEY_ACCEL_HARD, CarThresholds.HARD_ACCEL),
+                s.getFloat(SettingsManager.KEY_BRAKE_HARD, CarThresholds.HARD_BRAKE));
         if (r == last) {
             return;
         }

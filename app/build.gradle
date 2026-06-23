@@ -10,8 +10,8 @@ android {
         applicationId "com.midbows.zkvision"
         minSdk 24
         targetSdk 33
-        versionCode 29
-        versionName "5.6"
+        versionCode 33
+        versionName "5.10"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 

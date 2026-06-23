@@ -95,6 +95,16 @@ public final class RobotChoreographer {
         robot.center();
     }
 
+    /** 播放眼屏表情（厂家 FE55 表情字节，由运动板下发）。 */
+    public void expression(byte cmd) {
+        robot.playExpression(cmd);
+    }
+
+    /** 摇头晃脑：运动板内置摆头动作（FE55 0x25）。 */
+    public void wobble() {
+        robot.wobble();
+    }
+
     /** 待机微动。 */
     public void microMotion() {
         robot.look(MotionProtocol.DIR_LEFT);

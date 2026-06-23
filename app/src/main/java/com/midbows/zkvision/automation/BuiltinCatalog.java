@@ -57,6 +57,7 @@ public final class BuiltinCatalog {
         l.add(new BuiltinDef("drivemode", "驾驶模式人格", "切换驾驶模式", "底色随模式变化"));
         l.add(new BuiltinDef("ambient", "氛围灯同步", "车机氛围灯颜色变化", "底部灯跟随车机同色"));
         l.add(new BuiltinDef("cabintemp", "冷热反应", "车内温度过冷/过热", "冰蓝哆嗦 / 灼红"));
+        l.add(new BuiltinDef("actemp", "空调互动", "空调温度调高 / 调低", "调高点头开心 / 调低哆嗦装酷"));
         return l;
     }
 }

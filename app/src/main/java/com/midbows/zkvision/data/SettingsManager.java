@@ -27,6 +27,16 @@ public final class SettingsManager {
     public static final String KEY_BIND_MOTION_MAC = "bind_motion_mac";
     public static final String KEY_BIND_LIGHT_MAC = "bind_light_mac";
 
+    /**
+     * 预置场景可调阈值（用户在「场景助手」点击预置进入详情后可改）。
+     * 默认值见 {@code CarThresholds}；监听器在判定时实时读取，改完即生效、无需重连。
+     * 加速度阈值单位为传感器原生量（实测静止≈0.0x，疑似 g）。
+     */
+    public static final String KEY_ACCEL_HARD = "thr_accel_hard";
+    public static final String KEY_BRAKE_HARD = "thr_brake_hard";
+    public static final String KEY_COLD_BELOW = "thr_cold_below_c";
+    public static final String KEY_HOT_ABOVE = "thr_hot_above_c";
+
     private final SharedPreferences prefs;
     private static SettingsManager instance;
 
@@ -47,6 +57,16 @@ public final class SettingsManager {
 
     public void setEnabled(String key, boolean enabled) {
         prefs.edit().putBoolean(key, enabled).apply();
+    }
+
+    /** 读浮点阈值；未设置返回 def（默认取 CarThresholds 出厂值）。 */
+    public float getFloat(String key, float def) {
+        return prefs.getFloat(key, def);
+    }
+
+    /** 存浮点阈值（预置场景详情里调整）。 */
+    public void setFloat(String key, float value) {
+        prefs.edit().putFloat(key, value).apply();
     }
 
     /** 读绑定 MAC；未绑定返回空串。 */

@@ -58,6 +58,7 @@ public final class RuleEditorActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_rule_editor);
         store = RuleStore.getInstance(this);
+        findViewById(R.id.btnBack).setOnClickListener(v -> finish());
 
         String id = getIntent().getStringExtra(EXTRA_RULE_ID);
         rule = id == null ? null : store.getById(id);

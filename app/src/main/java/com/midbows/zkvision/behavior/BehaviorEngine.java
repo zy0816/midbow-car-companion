@@ -4,6 +4,7 @@ import android.os.Handler;
 import android.os.Looper;
 
 import com.midbows.zkvision.ble.RobotController;
+import com.midbows.zkvision.protocol.MotionProtocol;
 import com.midbows.zkvision.util.RobotLog;
 
 import java.util.Random;
@@ -232,6 +233,27 @@ public final class BehaviorEngine {
         onAmbientOff();
     }
 
+    /** 空调调高设定温度：点头 + 开心表情（"嗯，暖一点更舒服"）。瞬时互动，不碰氛围灯。 */
+    public void onAcWarmer() {
+        if (arbiter.accept(PriorityArbiter.ACCEL)) {
+            RobotLog.d(TAG, "空调调高，点头开心");
+            choreo.nod();
+            choreo.expression(MotionProtocol.EXPR_HAPPY);
+            scheduleHighPriorityReset(PriorityArbiter.ACCEL);
+        }
+    }
+
+    /** 空调调低设定温度：哆嗦 + 装酷表情（"凉快～"）。瞬时互动，不碰氛围灯。
+     *  注：好冷专属表情字节未公开，实车扫到后可替换为更贴切的冷表情。 */
+    public void onAcCooler() {
+        if (arbiter.accept(PriorityArbiter.ACCEL)) {
+            RobotLog.d(TAG, "空调调低，哆嗦装酷");
+            choreo.shiver();
+            choreo.expression(MotionProtocol.EXPR_COOL);
+            scheduleHighPriorityReset(PriorityArbiter.ACCEL);
+        }
+    }
+
     /** 碰撞预警：受惊后仰 + 红闪（最高优先级）。 */
     public void onCollisionWarn() {
         if (arbiter.accept(PriorityArbiter.COLLISION)) {
@@ -341,6 +363,17 @@ public final class BehaviorEngine {
         }
         RobotLog.d(TAG, "规则动作：" + actionKey);
         long hold = HIGH_PRIORITY_TIMEOUT_MS;
+        // 表情动作：键形如 expr_0A，解析出 FE55 表情字节直接播放。
+        if (actionKey.startsWith("expr_")) {
+            try {
+                byte cmd = (byte) Integer.parseInt(actionKey.substring(5), 16);
+                choreo.expression(cmd);
+                scheduleHighPriorityReset(CUSTOM_PRIORITY, hold);
+            } catch (NumberFormatException e) {
+                arbiter.resetIfAt(CUSTOM_PRIORITY);
+            }
+            return;
+        }
         switch (actionKey) {
             case "nod":
                 choreo.nod();
@@ -382,6 +415,9 @@ public final class BehaviorEngine {
                 break;
             case "recoil":
                 choreo.recoil();
+                break;
+            case "wobble":
+                choreo.wobble();
                 break;
             case "flash_color":
                 choreo.moodRgb((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, 255);

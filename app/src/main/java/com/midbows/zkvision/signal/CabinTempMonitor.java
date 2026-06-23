@@ -4,6 +4,7 @@ import android.content.Context;
 
 import com.ecarx.xui.adaptapi.car.sensor.ISensor;
 import com.midbows.zkvision.behavior.BehaviorEngine;
+import com.midbows.zkvision.data.SettingsManager;
 
 /**
  * 冷热反应：跟随车内温度传感器（非空调设定）。
@@ -32,8 +33,12 @@ final class CabinTempMonitor extends AbstractSignalSource {
         last = null;
         token = EcarxCarManager.getInstance().watchSensorValue(
                 context, ISensor.SENSOR_TYPE_TEMPERATURE_INDOOR, (type, value) -> {
+                    // 阈值实时取自用户设置，未设置回退出厂值；改完即生效、无需重连。
+                    SettingsManager s = SettingsManager.getInstance(context);
                     CabinTempReaction r = CabinTempReaction.classify(
-                            value, CarThresholds.COLD_BELOW_C, CarThresholds.HOT_ABOVE_C);
+                            value,
+                            s.getFloat(SettingsManager.KEY_COLD_BELOW, CarThresholds.COLD_BELOW_C),
+                            s.getFloat(SettingsManager.KEY_HOT_ABOVE, CarThresholds.HOT_ABOVE_C));
                     if (r == last) {
                         return;
                     }

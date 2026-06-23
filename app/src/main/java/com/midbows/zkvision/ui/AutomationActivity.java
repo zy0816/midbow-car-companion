@@ -7,6 +7,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -21,6 +22,8 @@ import com.midbows.zkvision.automation.AutomationRule;
 import com.midbows.zkvision.automation.BuiltinCatalog;
 import com.midbows.zkvision.automation.RuleStore;
 import com.midbows.zkvision.automation.TriggerCatalog;
+import com.midbows.zkvision.data.SettingsManager;
+import com.midbows.zkvision.signal.CarThresholds;
 
 /**
  * 场景助手列表页：展示全部规则（预置 + 自定义），支持开关、删除、点击编辑、新建。
@@ -39,6 +42,7 @@ public final class AutomationActivity extends AppCompatActivity {
         setContentView(R.layout.activity_automation);
         store = RuleStore.getInstance(this);
         ruleList = findViewById(R.id.ruleList);
+        findViewById(R.id.btnBack).setOnClickListener(v -> finish());
         findViewById(R.id.btnNewRule).setOnClickListener(v ->
                 startActivity(new Intent(this, RuleEditorActivity.class)));
     }
@@ -98,7 +102,10 @@ public final class AutomationActivity extends AppCompatActivity {
         row.addView(sw);
         card.addView(row);
 
-        if (!rule.isBuiltin()) {
+        if (rule.isBuiltin()) {
+            // 预置场景点击进入详情：阈值型（急加速/冷热）可现场调参，其余仅展示触发→动作。
+            texts.setOnClickListener(v -> showBuiltinDetail(rule));
+        } else {
             texts.setOnClickListener(v -> {
                 Intent i = new Intent(this, RuleEditorActivity.class);
                 i.putExtra(RuleEditorActivity.EXTRA_RULE_ID, rule.id);
@@ -110,6 +117,108 @@ public final class AutomationActivity extends AppCompatActivity {
             return true;
         });
         return card;
+    }
+
+    /**
+     * 预置场景详情：阈值型预置（急加速/急刹、座舱冷热）给出可调参数并落 {@link SettingsManager}，
+     * 监听器在判定时实时取值、改完即生效；其余预置仅展示触发→动作文案与开关说明。
+     */
+    private void showBuiltinDetail(AutomationRule rule) {
+        BuiltinCatalog.BuiltinDef d = BuiltinCatalog.byKey(rule.builtinKey);
+        String title = d == null ? rule.name : d.name;
+
+        if ("accel".equals(rule.builtinKey)) {
+            SettingsManager s = SettingsManager.getInstance(this);
+            EditText accel = numberField(s.getFloat(
+                    SettingsManager.KEY_ACCEL_HARD, CarThresholds.HARD_ACCEL));
+            EditText brake = numberField(s.getFloat(
+                    SettingsManager.KEY_BRAKE_HARD, CarThresholds.HARD_BRAKE));
+            LinearLayout box = thresholdBox(
+                    "纵向加速度为传感器原生量（实测静止约 0.0x，疑似 g 而非 m/s²）。\n超过阈值触发急加速后仰 / 急刹前倾。",
+                    "急加速阈值（约 g）", accel, "急刹阈值（绝对值，约 g）", brake);
+            new AlertDialog.Builder(this)
+                    .setTitle(title)
+                    .setView(box)
+                    .setPositiveButton("保存", (dlg, w) -> {
+                        saveFloat(s, SettingsManager.KEY_ACCEL_HARD, accel, CarThresholds.HARD_ACCEL);
+                        saveFloat(s, SettingsManager.KEY_BRAKE_HARD, brake, CarThresholds.HARD_BRAKE);
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+            return;
+        }
+
+        if ("cabintemp".equals(rule.builtinKey)) {
+            SettingsManager s = SettingsManager.getInstance(this);
+            EditText cold = numberField(s.getFloat(
+                    SettingsManager.KEY_COLD_BELOW, CarThresholds.COLD_BELOW_C));
+            EditText hot = numberField(s.getFloat(
+                    SettingsManager.KEY_HOT_ABOVE, CarThresholds.HOT_ABOVE_C));
+            LinearLayout box = thresholdBox(
+                    "跟随车内温度传感器（℃）。低于「冷」阈值哆嗦，高于「热」阈值灼红。",
+                    "冷阈值（℃）", cold, "热阈值（℃）", hot);
+            new AlertDialog.Builder(this)
+                    .setTitle(title)
+                    .setView(box)
+                    .setPositiveButton("保存", (dlg, w) -> {
+                        saveFloat(s, SettingsManager.KEY_COLD_BELOW, cold, CarThresholds.COLD_BELOW_C);
+                        saveFloat(s, SettingsManager.KEY_HOT_ABOVE, hot, CarThresholds.HOT_ABOVE_C);
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+            return;
+        }
+
+        // 非阈值型预置：仅展示触发→动作，说明可用开关启停、长按删除。
+        String msg = d == null
+                ? "预置场景。"
+                : "触发：" + d.triggerText + "\n动作：" + d.actionText
+                        + "\n\n此预置无可调参数，可用右侧开关启停、长按删除。";
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(msg)
+                .setPositiveButton("知道了", null)
+                .show();
+    }
+
+    private EditText numberField(float value) {
+        EditText e = new EditText(this);
+        e.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+                | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
+        e.setText(String.valueOf(value));
+        return e;
+    }
+
+    private LinearLayout thresholdBox(String hint, String label1, EditText e1,
+                                      String label2, EditText e2) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(24), dp(8), dp(24), dp(8));
+        TextView tip = new TextView(this);
+        tip.setText(hint);
+        tip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        tip.setAlpha(0.7f);
+        box.addView(tip);
+        TextView l1 = new TextView(this);
+        l1.setText(label1);
+        l1.setPadding(0, dp(16), 0, 0);
+        box.addView(l1);
+        box.addView(e1);
+        TextView l2 = new TextView(this);
+        l2.setText(label2);
+        l2.setPadding(0, dp(12), 0, 0);
+        box.addView(l2);
+        box.addView(e2);
+        return box;
+    }
+
+    private void saveFloat(SettingsManager s, String key, EditText field, float def) {
+        try {
+            s.setFloat(key, Float.parseFloat(field.getText().toString().trim()));
+        } catch (NumberFormatException ignored) {
+            s.setFloat(key, def);
+        }
     }
 
     private void confirmDelete(AutomationRule rule) {

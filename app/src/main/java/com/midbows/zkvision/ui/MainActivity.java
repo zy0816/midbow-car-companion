@@ -1,6 +1,7 @@
 package com.midbows.zkvision.ui;
 
 import android.Manifest;
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothProfile;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -11,12 +12,14 @@ import android.os.Looper;
 import android.view.View;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import com.midbows.zkvision.R;
 import com.midbows.zkvision.behavior.EyeMood;
@@ -54,6 +57,8 @@ public final class MainActivity extends AppCompatActivity implements RobotLog.Si
     private View dotEyes;
     private TextView stateMotion;
     private TextView stateEyes;
+    private MaterialButton btnBindMotion;
+    private MaterialButton btnBindEyes;
     private TextView tvLog;
     private ScrollView scrollLog;
 
@@ -79,8 +84,12 @@ public final class MainActivity extends AppCompatActivity implements RobotLog.Si
         dotEyes = findViewById(R.id.dotEyes);
         stateMotion = findViewById(R.id.stateMotion);
         stateEyes = findViewById(R.id.stateEyes);
+        btnBindMotion = findViewById(R.id.btnBindMotion);
+        btnBindEyes = findViewById(R.id.btnBindEyes);
         tvLog = findViewById(R.id.tvLog);
         scrollLog = findViewById(R.id.scrollLog);
+        btnBindMotion.setOnClickListener(v -> bindConnected(BleManager.TYPE_MOTION, "机器人本体"));
+        btnBindEyes.setOnClickListener(v -> bindConnected(BleManager.TYPE_EYES, "氛围灯"));
         findViewById(R.id.btnScan).setOnClickListener(v -> ble.startScan());
         findViewById(R.id.btnAutomation).setOnClickListener(v ->
                 startActivity(new Intent(this, AutomationActivity.class)));
@@ -182,6 +191,8 @@ public final class MainActivity extends AppCompatActivity implements RobotLog.Si
         public void run() {
             updateDot(dotMotion, stateMotion, ble.getConnectionState(BleManager.TYPE_MOTION));
             updateDot(dotEyes, stateEyes, ble.getConnectionState(BleManager.TYPE_EYES));
+            updateBindButton(btnBindMotion, BleManager.TYPE_MOTION);
+            updateBindButton(btnBindEyes, BleManager.TYPE_EYES);
             handler.postDelayed(this, STATUS_POLL_MS);
         }
     };
@@ -191,6 +202,36 @@ public final class MainActivity extends AppCompatActivity implements RobotLog.Si
         dot.getBackground().mutate().setTint(connected ? CONNECTED_COLOR : DISCONNECTED_COLOR);
         label.setText(connected ? "已连接" : "未连接");
         label.setTextColor(connected ? CONNECTED_COLOR : DISCONNECTED_COLOR);
+    }
+
+    /** 已连接才可绑定；当前设备即已绑定设备时显示「已绑定」并禁用。 */
+    private void updateBindButton(MaterialButton btn, int type) {
+        BluetoothDevice dev = ble.getConnectedDevice(type);
+        boolean connected = ble.getConnectionState(type) == BluetoothProfile.STATE_CONNECTED
+                && dev != null;
+        if (!connected) {
+            btn.setEnabled(false);
+            btn.setText("绑定此设备");
+            return;
+        }
+        if (dev.getAddress().equals(ble.getBoundMac(type))) {
+            btn.setEnabled(false);
+            btn.setText("已绑定");
+        } else {
+            btn.setEnabled(true);
+            btn.setText("绑定此设备");
+        }
+    }
+
+    /** 把当前已连接的设备 MAC 绑定为该端点（一键绑定，免去扫描指派）。 */
+    private void bindConnected(int type, String name) {
+        BluetoothDevice dev = ble.getConnectedDevice(type);
+        if (dev == null || ble.getConnectionState(type) != BluetoothProfile.STATE_CONNECTED) {
+            Toast.makeText(this, "请先连接" + name + "再绑定", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ble.bindDevice(type, dev.getAddress());
+        Toast.makeText(this, "已绑定 " + name + " → " + dev.getAddress(), Toast.LENGTH_SHORT).show();
     }
 
     // ---------------- 日志 ----------------

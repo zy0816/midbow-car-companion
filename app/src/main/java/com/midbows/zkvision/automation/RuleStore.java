@@ -24,6 +24,8 @@ public final class RuleStore {
     private static final String PREFS = "zkvision_rules";
     private static final String KEY_RULES = "rules";
     private static final String KEY_SEEDED = "seeded";
+    /** 已注入过的内置预置键集合（JSON 数组）。用于升级后只补新增的预置，且不复活用户删过的。 */
+    private static final String KEY_SEEDED_KEYS = "seeded_keys";
 
     private final Context context;
     private final android.content.SharedPreferences prefs;
@@ -43,20 +45,49 @@ public final class RuleStore {
     }
 
     private void seedIfNeeded() {
-        if (prefs.getBoolean(KEY_SEEDED, false)) {
-            return;
+        List<String> seededKeys = readSeededKeys();
+        // 旧版迁移：已 seeded 但无 seeded_keys，则以当前已存的预置键作为「已注入」基线，避免重复。
+        if (seededKeys.isEmpty() && prefs.getBoolean(KEY_SEEDED, false)) {
+            for (AutomationRule r : getRules()) {
+                if (r.isBuiltin() && !seededKeys.contains(r.builtinKey)) {
+                    seededKeys.add(r.builtinKey);
+                }
+            }
         }
-        List<AutomationRule> seed = new ArrayList<>();
+        List<AutomationRule> list = getRules();
+        boolean changed = false;
         for (BuiltinCatalog.BuiltinDef d : BuiltinCatalog.all()) {
+            if (seededKeys.contains(d.key)) {
+                continue;
+            }
             AutomationRule r = new AutomationRule();
             r.id = UUID.randomUUID().toString();
             r.name = d.name;
             r.builtinKey = d.key;
             r.enabled = true;
-            seed.add(r);
+            list.add(r);
+            seededKeys.add(d.key);
+            changed = true;
         }
-        writeList(seed);
-        prefs.edit().putBoolean(KEY_SEEDED, true).apply();
+        if (changed) {
+            writeList(list);
+        }
+        prefs.edit()
+                .putBoolean(KEY_SEEDED, true)
+                .putString(KEY_SEEDED_KEYS, new JSONArray(seededKeys).toString())
+                .apply();
+    }
+
+    private List<String> readSeededKeys() {
+        List<String> keys = new ArrayList<>();
+        try {
+            JSONArray arr = new JSONArray(prefs.getString(KEY_SEEDED_KEYS, "[]"));
+            for (int i = 0; i < arr.length(); i++) {
+                keys.add(arr.getString(i));
+            }
+        } catch (JSONException ignored) {
+        }
+        return keys;
     }
 
     public synchronized List<AutomationRule> getRules() {

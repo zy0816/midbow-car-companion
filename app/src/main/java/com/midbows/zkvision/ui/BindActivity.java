@@ -11,6 +11,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -50,8 +51,9 @@ public final class BindActivity extends AppCompatActivity implements BleManager.
         scroll.addView(root);
         setContentView(scroll);
 
+        root.addView(backBar());
         root.addView(title("设备绑定"));
-        root.addView(hint("扫描周围全部蓝牙设备，把你的机器人指派为「运动板」或「氛围灯」。"
+        root.addView(hint("扫描周围全部蓝牙设备，把你的机器人指派为「机器人本体」或「氛围灯」。"
                 + "未绑定时按出厂名前缀自动识别。"));
 
         bindingLabel = new TextView(this);
@@ -63,8 +65,16 @@ public final class BindActivity extends AppCompatActivity implements BleManager.
         root.addView(buttonRow(
                 btn("开始扫描", () -> ble.startScan()),
                 btn("停止扫描", () -> ble.stopScan()),
-                btn("清除运动板", () -> { ble.bindDevice(BleManager.TYPE_MOTION, ""); refreshBindingLabel(); }),
-                btn("清除氛围灯", () -> { ble.bindDevice(BleManager.TYPE_EYES, ""); refreshBindingLabel(); })));
+                btn("清除机器人本体", () -> {
+                    ble.bindDevice(BleManager.TYPE_MOTION, "");
+                    refreshBindingLabel();
+                    toast("已清除机器人本体绑定");
+                }),
+                btn("清除氛围灯", () -> {
+                    ble.bindDevice(BleManager.TYPE_EYES, "");
+                    refreshBindingLabel();
+                    toast("已清除氛围灯绑定");
+                })));
 
         root.addView(section("扫描到的设备"));
         deviceList = vbox();
@@ -108,13 +118,15 @@ public final class BindActivity extends AppCompatActivity implements BleManager.
         rowBox.addView(info);
 
         rowBox.addView(buttonRow(
-                btn("设为运动板", () -> {
+                btn("设为机器人本体", () -> {
                     ble.bindDevice(BleManager.TYPE_MOTION, mac);
                     refreshBindingLabel();
+                    toast("已绑定机器人本体 → " + mac);
                 }),
                 btn("设为氛围灯", () -> {
                     ble.bindDevice(BleManager.TYPE_EYES, mac);
                     refreshBindingLabel();
+                    toast("已绑定氛围灯 → " + mac);
                 })));
 
         rows.put(mac, info);
@@ -124,13 +136,25 @@ public final class BindActivity extends AppCompatActivity implements BleManager.
     private void refreshBindingLabel() {
         String motion = ble.getBoundMac(BleManager.TYPE_MOTION);
         String light = ble.getBoundMac(BleManager.TYPE_EYES);
-        bindingLabel.setText("当前绑定：\n运动板 = "
+        bindingLabel.setText("当前绑定：\n机器人本体 = "
                 + (motion.isEmpty() ? "未绑定（按名前缀 MIDBOW1S）" : motion)
                 + "\n氛围灯 = "
                 + (light.isEmpty() ? "未绑定（按名前缀 ET-ROBOT-01）" : light));
     }
 
     // ---------------- 小工具 ----------------
+
+    private View backBar() {
+        LinearLayout bar = hbox();
+        View b = btn("← 返回", this::finish);
+        bar.addView(b, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, BTN_H));
+        return bar;
+    }
+
+    private void toast(String msg) {
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+    }
 
     private View buttonRow(View... buttons) {
         LinearLayout row = hbox();
