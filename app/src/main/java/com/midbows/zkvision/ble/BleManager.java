@@ -23,8 +23,9 @@ import com.midbows.zkvision.data.SettingsManager;
 import com.midbows.zkvision.util.HexUtil;
 import com.midbows.zkvision.util.RobotLog;
 
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 /**
  * 双端点 BLE 连接管理：扫描、连接、特征匹配、写队列与流控、断线重连。
@@ -47,6 +48,13 @@ public final class BleManager {
     private static final int MAX_WRITE_ATTEMPTS = 3;
     /** 某端点连续写失败达到此数即判定为僵尸链路，主动断开触发重连自愈。 */
     private static final int ZOMBIE_LINK_FAILURES = 8;
+    /**
+     * 暂存指令最长存活：端点未就绪时仍把指令入队缓存（仿竞品「断链暂停不丢弃」），连上后补发；
+     * 但超过此时长仍未送达即丢弃，避免长时间断连后唤醒一次性灌入大量过期瞬时指令（旧动作回放）。
+     */
+    private static final long STALE_WRITE_MS = 3000;
+    /** 写队列封顶：长时间未就绪时防止无限堆积，超限丢最旧。 */
+    private static final int WRITE_QUEUE_CAP = 32;
     /**
      * 连接建立超时：connectGatt 发起后若在此时限内仍未就绪（既没到 CONNECTED+发现写特征，
      * 也没回 DISCONNECTED），即判定卡死并强制释放重连。
@@ -95,7 +103,7 @@ public final class BleManager {
     private final BleEndpoint eyes =
             new BleEndpoint(TYPE_EYES, "ET-ROBOT-01", "c02e69c2", "d914e6b6");
 
-    private final Queue<WriteTask> writeQueue = new ConcurrentLinkedQueue<>();
+    private final Deque<WriteTask> writeQueue = new ConcurrentLinkedDeque<>();
     private final HandlerThread writeThread;
     private final Handler writeHandler;
     /** 已写出、正在等待 onCharacteristicWrite 回调（或超时）的那一笔；只在 writeThread 访问。 */
@@ -116,6 +124,8 @@ public final class BleManager {
     private static final class WriteTask {
         final BleEndpoint endpoint;
         final byte[] data;
+        /** 入队时刻，用于时效淘汰：超 STALE_WRITE_MS 仍未送达则丢弃。 */
+        final long createdMs = SystemClock.uptimeMillis();
         int attempts;
 
         WriteTask(BleEndpoint endpoint, byte[] data) {
@@ -433,46 +443,68 @@ public final class BleManager {
 
     public void send(int type, byte[] data) {
         BleEndpoint ep = endpoint(type);
-        // 按端点各自就绪各自发：哪端连上就能控哪端。旧版「两端都连才发」会在一端僵死/掉线时
-        // 把另一端也一并锁死，导致机器人整体不可控（运动板掉线连眼睛都发不出去）。
-        if (ep != null && ep.isReady()) {
-            writeQueue.offer(new WriteTask(ep, data));
-            // 总是踢一脚；processNextWrite 自带「在途写判重」(pendingTask)，多余的消息无害。
-            writeHandler.sendEmptyMessage(MSG_WRITE_NEXT);
-        } else {
-            // 该端点未就绪时静默丢弃，但节流告警（最多每 5s 一条），杜绝未连接时疯狂刷日志。
+        if (ep == null) {
+            return;
+        }
+        // 仿竞品「断链暂停不丢弃」：即便端点暂未就绪也先入队缓存，连上后由 processNextWrite 补发。
+        // 队列封顶丢最旧 + 入队时效淘汰（STALE_WRITE_MS），避免长断连后唤醒灌入大量过期瞬时指令。
+        // 按端点各自就绪各自发：哪端连上就能控哪端，一端僵死不锁死另一端。
+        while (writeQueue.size() >= WRITE_QUEUE_CAP) {
+            writeQueue.poll();
+        }
+        writeQueue.offer(new WriteTask(ep, data));
+        // 总是踢一脚；processNextWrite 自带「在途写判重」(pendingTask)，多余的消息无害。
+        writeHandler.sendEmptyMessage(MSG_WRITE_NEXT);
+        if (!ep.isReady()) {
+            // 未就绪只是暂存待补发，不丢弃；节流告警（最多每 5s 一条），杜绝未连接时刷屏。
             long now = SystemClock.uptimeMillis();
             if (now - lastNotReadyWarnMs >= NOT_READY_WARN_INTERVAL_MS) {
                 lastNotReadyWarnMs = now;
                 RobotLog.w(TAG, "端点未就绪（运动=" + motion.isReady()
-                        + " 眼睛=" + eyes.isReady() + "），丢弃指令 type=" + type);
+                        + " 眼睛=" + eyes.isReady() + "），暂存指令待连上补发 type=" + type);
             }
         }
     }
 
-    /** 取下一笔并写出。若已有在途写（pendingTask）则等回调/超时，绝不并发写。仅 writeThread 调用。 */
+    /**
+     * 取下一笔可发送的指令并写出。若已有在途写（pendingTask）则等回调/超时，绝不并发写。仅 writeThread 调用。
+     *
+     * <p>扫描队列取<b>首个所属端点已就绪</b>的指令发送：未就绪但仍新鲜的暂留队列待端点连上补发；
+     * 超 {@link #STALE_WRITE_MS} 仍未送达的则丢弃（防唤醒后回放过期瞬时动作）。这样某端点未就绪
+     * 不会阻塞另一已就绪端点的指令。
+     */
     private void processNextWrite() {
         if (pendingTask != null) {
             return;
         }
-        WriteTask task = writeQueue.poll();
+        long now = SystemClock.uptimeMillis();
+        WriteTask task = null;
+        for (Iterator<WriteTask> it = writeQueue.iterator(); it.hasNext(); ) {
+            WriteTask t = it.next();
+            if (t.endpoint.isReady()) {
+                task = t;
+                it.remove();
+                break;
+            }
+            if (now - t.createdMs > STALE_WRITE_MS) {
+                it.remove(); // 端点迟迟未就绪，指令过期，丢弃避免日后灌旧动作。
+            }
+            // 否则保留：端点尚未就绪但指令仍新鲜，等连上后补发。
+        }
         if (task == null) {
+            // 当前无「就绪端点」的指令可发；待 send()/重连再次踢队列。
             return;
         }
 
         BleEndpoint ep = task.endpoint;
-        if (!ep.isReady()) {
-            // 端点已掉线，丢弃并继续排空（不刷屏）。
-            writeHandler.sendEmptyMessage(MSG_WRITE_NEXT);
-            return;
-        }
-
         BluetoothGattCharacteristic c = ep.writeChar;
         int props = c.getProperties();
-        if ((props & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0) {
-            c.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
-        } else {
+        if ((props & BluetoothGattCharacteristic.PROPERTY_WRITE) != 0) {
+            // 仿竞品：优先带应答写。ATT 层确认送达，onCharacteristicWrite 的 status 真实可信，
+            // 配合失败重试才能真正「不丢命令」；仅在特征不支持带应答时才退回无应答。
             c.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+        } else {
+            c.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
         }
         c.setValue(task.data);
         boolean ok = ep.gatt.writeCharacteristic(c);
@@ -520,7 +552,7 @@ public final class BleManager {
         ep.consecutiveWriteFailures++;
         task.attempts++;
         if (task.attempts < MAX_WRITE_ATTEMPTS) {
-            writeQueue.offer(task);
+            writeQueue.offerFirst(task);
             RobotLog.d(TAG, "写 type=" + ep.type + " " + HexUtil.toHex(task.data)
                     + " " + reason + "(重试 " + task.attempts + ")");
         } else {
@@ -562,18 +594,23 @@ public final class BleManager {
         });
     }
 
-    /** 端点掉线：清掉其在途写与积压任务、复位看门狗，避免重连后队列卡死或误发旧链路。 */
+    /**
+     * 端点掉线：清掉其在途写与超时看门狗，但<b>保留</b>排队指令（仿竞品「断链暂停不丢弃」）。
+     *
+     * <p>中断的在途写若仍新鲜则放回队首，端点重连后由 {@link #processNextWrite} 补发；积压的
+     * 排队指令不再整批清空，交给 {@link #STALE_WRITE_MS} 时效淘汰过期项。这样锁车/睡眠等
+     * 短暂断连窗口里发出的指令不会蒸发，连上即补发，根治「发命令机器人没反应」。
+     */
     private void purgeWrites(final BleEndpoint ep) {
         writeHandler.post(new Runnable() {
             @Override
             public void run() {
                 writeHandler.removeMessages(MSG_WRITE_TIMEOUT);
                 if (pendingTask != null && pendingTask.endpoint == ep) {
+                    WriteTask interrupted = pendingTask;
                     pendingTask = null;
-                }
-                for (java.util.Iterator<WriteTask> it = writeQueue.iterator(); it.hasNext(); ) {
-                    if (it.next().endpoint == ep) {
-                        it.remove();
+                    if (SystemClock.uptimeMillis() - interrupted.createdMs <= STALE_WRITE_MS) {
+                        writeQueue.offerFirst(interrupted);
                     }
                 }
                 writeHandler.sendEmptyMessage(MSG_WRITE_NEXT);
@@ -639,7 +676,10 @@ public final class BleManager {
                     ep.writeChar = c;
                     // 已拿到写特征＝端点真正就绪，撤销连接看门狗，避免误判超时。
                     cancelConnectWatchdog(ep);
-                    RobotLog.d(TAG, "type=" + ep.type + " 写特征 " + uuid);
+                    RobotLog.d(TAG, "type=" + ep.type + " 写特征 " + uuid
+                            + " props=" + c.getProperties());
+                    // 端点就绪即踢一脚写队列：把断链期间暂存的指令补发出去。
+                    writeHandler.sendEmptyMessage(MSG_WRITE_NEXT);
                 } else if (uuid.contains(ep.notifyUuidFrag)) {
                     ep.notifyChar = c;
                     gatt.setCharacteristicNotification(c, true);
